@@ -44,6 +44,7 @@ async function connectToDatabase() {
 }
 
 // Fetch products from the API
+// Fetch products from the API
 async function fetchProducts() {
     let products = [];
     let currentPage = 1;
@@ -69,6 +70,7 @@ async function fetchProducts() {
     console.log("Fetched all products.");
     return products;
 }
+// Fetch transactions from the API
 
 // Fetch transactions from the API
 async function fetchTransactions() {
@@ -107,43 +109,100 @@ async function fetchTransactions() {
 }
 
 // Store or update products in MongoDB
+
 async function storeProducts(products, transactionsByProduct) {
-    for (const product of products) {
+    const bulkOperations = [];
+
+    products.forEach(product => {
+        const productId = product.id;
+        if (transactionsByProduct[productId]) {
+            product.transactions = transactionsByProduct[productId];
+        } else {
+            product.transactions = [];
+        }
+
+        const updateOperation = {
+            updateOne: {
+                filter: { id: product.id },
+                update: {
+                    $set: product,
+                },
+                upsert: true,  // Insert if not found, update if found
+            },
+        };
+        bulkOperations.push(updateOperation);
+    });
+
+    if (bulkOperations.length > 0) {
         try {
-            const productId = product.id;
-            if (transactionsByProduct[productId]) {
-                product.transactions = transactionsByProduct[productId];
-            } else {
-                product.transactions = [];
-            }
-
-            const existingProduct = await collection.findOne({ id: product.id });
-
-            if (existingProduct) {
-                await collection.updateOne({ id: product.id }, { $set: product });
-                console.log(`Product with ID ${product.id} updated.`);
-            } else {
-                await collection.insertOne(product);
-                console.log(`Product with ID ${product.id} added.`);
-            }
+            const result = await collection.bulkWrite(bulkOperations);
+            console.log(`Bulk operation result: ${result.modifiedCount} documents updated.`);
         } catch (e) {
-            console.error(`Error storing product data in MongoDB: ${e.message}`);
+            console.error(`Error performing bulk operation: ${e.message}`);
         }
     }
 
     console.log("All products with transactions stored/updated successfully.");
 }
 
+
+// Function to store or update the sync start timestamp
+async function startSyncTimestamp() {
+    const currentTimestamp = new Date();  // Get the current UTC time
+
+    try {
+        const result = await db.collection("update").updateOne(
+            {},  // Empty filter to target the document (assumes only one document exists)
+            {
+                $set: {
+                    startAt: currentTimestamp,
+                },
+            },
+            { upsert: true }  // Create the document if it doesn't exist
+        );
+        console.log(`Sync start timestamp ${currentTimestamp.toISOString()} stored/updated in "update" collection`);
+    } catch (error) {
+        console.error('Error storing start timestamp:', error);
+    }
+}
+
+// Function to store or update the sync finish timestamp
+async function finishSyncTimestamp() {
+    const currentTimestamp = new Date();  // Get the current UTC time
+
+    try {
+        const result = await db.collection("update").updateOne(
+            {},  // Empty filter to target the document
+            {
+                $set: {
+                    finishAt: currentTimestamp,
+                },
+            }
+        );
+        console.log(`Sync finish timestamp ${currentTimestamp.toISOString()} stored/updated in "update" collection`);
+    } catch (error) {
+        console.error('Error storing finish timestamp:', error);
+    }
+}
+
 // Function to fetch and store data
 async function fetchAndStoreData() {
     try {
-        const products = await fetchProducts();
-        const transactionsByProduct = await fetchTransactions();
+        const productsPromise = fetchProducts();
+        const transactionsPromise = fetchTransactions();
+        const [products, transactionsByProduct] = await Promise.all([productsPromise, transactionsPromise]);
+
+        await startSyncTimestamp();  // Record the start timestamp
+
         await storeProducts(products, transactionsByProduct);
+
+        await finishSyncTimestamp();  // Record the finish timestamp
     } catch (error) {
         console.error('Error during data fetch and store process:', error);
     }
 }
+
+
 
 // Schedule the task to run every hour
 cron.schedule('0 * * * *', async () => {
@@ -152,62 +211,93 @@ cron.schedule('0 * * * *', async () => {
     console.log('Waiting for the next fetch cycle...');
 });
 
+
+
 // API endpoint to get products (with optional date range filter)
 app.get('/api/products', async (req, res) => {
     try {
-        const { startDate, endDate } = req.query;  // Get start and end date from query params
-        const matchConditions = [];
+        const page = parseInt(req.query.page) || 1; // Default to page 1
+        const limit = parseInt(req.query.limit) || 20; // Default to 10 items per page
+        const skip = (page - 1) * limit; // Calculate the number of documents to skip
 
-        if (startDate && endDate) {
-            matchConditions.push({
-                $match: {
-                    "transactions.created": {
-                        $gte: new Date(startDate),  // Convert startDate to Date object
-                        $lte: new Date(endDate)     // Convert endDate to Date object
-                    }
-                }
-            });
-        }
+        // Fetch products with pagination
+        const products = await db.collection("transactions")
+            .find() // Fetch all documents
+            .skip(skip) // Skip the previous pages
+            .limit(limit) // Limit to the current page size
+            .toArray();
 
-        const products = await collection.aggregate([
-            { $unwind: "$transactions" },  // Unwind the transactions array
-            ...matchConditions,
-            {
-                $addFields: {
-                    "transactions.created": {
-                        $dateFromString: {
-                            dateString: "$transactions.created",
-                            format: "%Y-%m-%d %H:%M:%S",  // Match your date format
-                        },
-                    }
-                }
-            },
-            {
-                $group: {
-                    _id: "$transactions.product_id",  // Group by product_id
-                    total_quantity_in: { $sum: { $cond: [{ $eq: ["$transactions.transaction_type", "1"] }, { $abs: { $toDouble: "$transactions.quantity" } }, 0] } },
-                    total_quantity_out: { $sum: { $cond: [{ $eq: ["$transactions.transaction_type", "2"] }, { $abs: { $toDouble: "$transactions.quantity" } }, 0] } },
-                    total_sales_amount: { $sum: { $cond: [{ $eq: ["$transactions.transaction_type", "2"] }, { $multiply: [{ $abs: { $toDouble: "$transactions.quantity" } }, { $toDouble: "$transactions.price" }] }, 0] } },
-                    sale_price: { $max: { $cond: [{ $eq: ["$transactions.transaction_type", "2"] }, { $toDouble: "$transactions.price" }, 0] } },
-                    product_name: { $first: "$name" },
-                    product_barcode: { $first: "$barcode" },
-                    product_tax1: { $first: "$tax1" },
-                    product_stock_balance: { $first: "$stock_balance" },
-                    product_average_price: { $first: "$average_price" }
-                }
-            }
-        ]).toArray();
+        const lastupdate = await db.collection("update").find().toArray()
 
-        res.json(products);
+        // Get the total count of documents for calculating total pages
+        const totalDocuments = await db.collection("transactions").countDocuments();
+        const totalPages = Math.ceil(totalDocuments / limit);
+
+        // Send response
+        res.json({
+            page,
+            limit,
+            totalPages,
+            totalDocuments,
+            data: products,
+            lastupdate
+        });
     } catch (err) {
-        console.error(err);
+        console.error('Error fetching products:', err.message);
         res.status(500).json({ message: 'Server Error' });
     }
 });
 
 
+app.get('/api/products/search', async (req, res) => {
+    try {
+        const page = parseInt(req.query.page) || 1; // Default to page 1
+        const limit = parseInt(req.query.limit) || 20; // Default to 20 items per page
+        const skip = (page - 1) * limit; // Calculate the number of documents to skip
+
+        // Build the query object based on request query parameters
+        const query = {};
+
+        if (req.query.id) {
+            // Check if the `id` query parameter should be for 'id' or 'barcode'
+            const searchValue = req.query.id;
+            query.$or = [
+                { id: searchValue },  // Match by product id
+                { barcode: searchValue }  // Match by barcode
+            ];
+        }
+
+        // Fetch products with pagination and dynamic query
+        const products = await db.collection("transactions")
+            .find(query) // Apply the dynamic query filter
+            .skip(skip) // Skip the previous pages
+            .limit(limit) // Limit to the current page size
+            .toArray();
+
+        // Get the total count of documents for calculating total pages
+        const totalDocuments = await db.collection("transactions").countDocuments(query); // Count based on the query
+        const totalPages = Math.ceil(totalDocuments / limit);
+
+        // Send response
+        res.json({
+            page,
+            limit,
+            totalPages,
+            totalDocuments,
+            data: products,
+        });
+    } catch (err) {
+        console.error('Error fetching products:', err.message);
+        res.status(500).json({ message: 'Server Error' });
+    }
+});
+
+
+
+
 // Catch-all route to serve index.html for any unmatched route
-app.get('*', (req, res) => {
+app.get('*', async (req, res) => {
+
     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
 // Connect to the database and start the server
