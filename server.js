@@ -220,7 +220,7 @@ app.get('/api/products', async (req, res) => {
         const limit = parseInt(req.query.limit) || 20; // Default to 10 items per page
         const skip = (page - 1) * limit; // Calculate the number of documents to skip
  // List of product IDs you want to fetch
-        const productIds = [1056856, 1058711];
+        const productIds = ["1056856", "1058711"];
         // Fetch products with pagination
         const products = await db.collection("transactions")
             .find({ id: { $in: productIds } }) // Fetch all documents
