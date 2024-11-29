@@ -160,8 +160,10 @@ app.get('/api/products', async (req, res) => {
 
         const totalDocuments = await collection.countDocuments({ id: { $in: productIds } });
         const totalPages = Math.ceil(totalDocuments / limit);
+        // Fetch the last update (optional)
+        const lastupdate = await db.collection("update").find().toArray();
 
-        res.json({ page, limit, totalPages, totalDocuments, data: products });
+        res.json({ page, limit, totalPages, totalDocuments, data: products, lastupdate });
     } catch (err) {
         console.error('Error fetching products:', err.message);
         res.status(500).json({ message: 'Server Error' });
