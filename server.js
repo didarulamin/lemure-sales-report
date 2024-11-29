@@ -223,7 +223,7 @@ app.get('/api/products', async (req, res) => {
         const productIds = [1056856, 1058711];
         // Fetch products with pagination
         const products = await db.collection("transactions")
-            .find({ _id: { $in: productIds } }) // Fetch all documents
+            .find({ id: { $in: productIds } }) // Fetch all documents
             .skip(skip) // Skip the previous pages
             .limit(limit) // Limit to the current page size
             .toArray();
