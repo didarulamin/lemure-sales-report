@@ -299,11 +299,10 @@ app.get('/api/products', async (req, res) => {
         const page = parseInt(req.query.page) || 1; // Default to page 1
         const limit = parseInt(req.query.limit) || 20; // Default to 20 items per page
         const skip = (page - 1) * limit; // Calculate the number of documents to skip
-        const productIds = ["1056856", "1058711"]; // Example product IDs
-
+        const productIds = ["1056856", "1058711"]; // Target product IDs
         // Fetch products with pagination
         const products = await db.collection("transactions")
-            .find({ id: { $in: productIds } }) // Filter documents by productIds
+            .find({ id: { $in: productIds }) // Fetch all documents
             .skip(skip) // Skip the previous pages
             .limit(limit) // Limit to the current page size
             .toArray();
@@ -383,10 +382,10 @@ app.get('/api/products/search', async (req, res) => {
 
 
 // Catch-all route to serve index.html for any unmatched route
-// app.get('*', async (req, res) => {
+app.get('*', async (req, res) => {
 
-//     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-// });
+    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+});
 
 // Connect to the database and start the server
 connectToDatabase().then(() => {
