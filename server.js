@@ -25,7 +25,7 @@ const API_URL_PRODUCTS = 'https://amamamed.daftra.com/api2/products';
 const API_URL_TRANSACTIONS = 'https://amamamed.daftra.com/api2/stock_transactions';
 const APIKEY = '70d7582b80ee4c5855daaed6872460519c0a528c';
 const LIMIT = 1000; // Records per page
-
+const productIds = ["1056856", "1058711"]; // Target product IDs
 // Headers for API requests
 const HEADERS = {
     "APIKEY": APIKEY
@@ -186,29 +186,109 @@ async function finishSyncTimestamp() {
 }
 
 // Function to fetch and store data
-async function fetchAndStoreData() {
+// async function fetchAndStoreData() {
+//     try {
+//         const productsPromise = fetchProducts();
+//         const transactionsPromise = fetchTransactions();
+//         const [products, transactionsByProduct] = await Promise.all([productsPromise, transactionsPromise]);
+
+//         await startSyncTimestamp();  // Record the start timestamp
+
+//         await storeProducts(products, transactionsByProduct);
+
+//         await finishSyncTimestamp();  // Record the finish timestamp
+//     } catch (error) {
+//         console.error('Error during data fetch and store process:', error);
+//     }
+// }
+
+
+
+// Fetch a single product by ID
+async function fetchProductById(productId) {
     try {
-        const productsPromise = fetchProducts();
-        const transactionsPromise = fetchTransactions();
-        const [products, transactionsByProduct] = await Promise.all([productsPromise, transactionsPromise]);
-
-        await startSyncTimestamp();  // Record the start timestamp
-
-        await storeProducts(products, transactionsByProduct);
-
-        await finishSyncTimestamp();  // Record the finish timestamp
+        console.log(`Fetching product ID: ${productId}`);
+        const response = await axios.get(`${API_URL_PRODUCT}/${productId}.json`, { headers: HEADERS });
+        return response.data.Product;
     } catch (error) {
-        console.error('Error during data fetch and store process:', error);
+        console.error(`Error fetching product ID ${productId}: ${error.message}`);
+        return null;
     }
 }
 
 
+// Fetch transactions for a specific product ID
+async function fetchTransactionsByProductId(productId) {
+    let transactions = [];
+    let currentPage = 1;
+    let totalPages = 1;
+
+    while (currentPage <= totalPages) {
+        console.log(`Fetching transactions for product ID ${productId}, page ${currentPage}`);
+        try {
+            const response = await axios.get(`${API_URL_TRANSACTIONS}?limit=${LIMIT}&page=${currentPage}&product_id=${productId}`, { headers: HEADERS });
+            const data = response.data.data;
+            const pagination = response.data.pagination;
+
+            transactions.push(...data);
+
+            currentPage = pagination.page + 1;
+            totalPages = pagination.page_count;
+        } catch (error) {
+            console.error(`Error fetching transactions for product ID ${productId}: ${error.message}`);
+            break;
+        }
+    }
+
+    console.log(`Fetched ${transactions.length} transactions for product ID ${productId}`);
+    return transactions;
+}
+
+// Store or update a single product in MongoDB
+async function storeProductWithTransactions(product, transactions) {
+    try {
+        product.transactions = transactions;
+
+        const result = await collection.updateOne(
+            { id: product.id }, // Match by product ID
+            { $set: product }, // Update the product document
+            { upsert: true } // Insert if not found
+        );
+
+        console.log(`Product ID ${product.id} stored/updated successfully`);
+    } catch (error) {
+        console.error(`Error storing product ID ${product.id}: ${error.message}`);
+    }
+}
+
+// Fetch and store data for target products
+async function fetchAndStoreData() {
+    for (const productId of productIds) {
+        try {
+            const product = await fetchProductById(productId);
+            if (!product) {
+                console.error(`Failed to fetch product ID ${productId}`);
+                continue;
+            }
+            await startSyncTimestamp();  // Record the start timestamp
+            const transactions = await fetchTransactionsByProductId(productId);
+            await storeProductWithTransactions(product, transactions);
+            await finishSyncTimestamp();  // Record the finish timestamp
+        } catch (error) {
+            console.error(`Error processing product ID ${productId}: ${error.message}`);
+        }
+    }
+
+    console.log("All selected products updated successfully");
+}
+
 
 // Schedule the task to run every hour
-cron.schedule('0 * * * *', async () => {
-    console.log('Starting fetch and store task...');
+// Schedule the task to run every 5 minutes
+cron.schedule('*/30 * * * *', async () => {
+    console.log("Starting fetch and store task...");
     await fetchAndStoreData();
-    console.log('Waiting for the next fetch cycle...');
+    console.log("Waiting for the next fetch cycle...");
 });
 
 
@@ -217,21 +297,27 @@ cron.schedule('0 * * * *', async () => {
 app.get('/api/products', async (req, res) => {
     try {
         const page = parseInt(req.query.page) || 1; // Default to page 1
-        const limit = parseInt(req.query.limit) || 20; // Default to 10 items per page
+        const limit = parseInt(req.query.limit) || 20; // Default to 20 items per page
         const skip = (page - 1) * limit; // Calculate the number of documents to skip
+        const productIds = ["1056856", "1058711"]; // Example product IDs
 
         // Fetch products with pagination
         const products = await db.collection("transactions")
-            .find() // Fetch all documents
+            .find({ id: { $in: productIds } }) // Filter documents by productIds
             .skip(skip) // Skip the previous pages
             .limit(limit) // Limit to the current page size
             .toArray();
 
-        const lastupdate = await db.collection("update").find().toArray()
+        // Calculate the total number of matching documents
+        const totalDocuments = await db.collection("transactions").countDocuments({
+            id: { $in: productIds },
+        });
 
-        // Get the total count of documents for calculating total pages
-        const totalDocuments = await db.collection("transactions").countDocuments();
+        // Calculate total pages
         const totalPages = Math.ceil(totalDocuments / limit);
+
+        // Fetch the last update (optional)
+        const lastupdate = await db.collection("update").find().toArray();
 
         // Send response
         res.json({
@@ -240,13 +326,14 @@ app.get('/api/products', async (req, res) => {
             totalPages,
             totalDocuments,
             data: products,
-            lastupdate
+            lastupdate,
         });
     } catch (err) {
         console.error('Error fetching products:', err.message);
         res.status(500).json({ message: 'Server Error' });
     }
 });
+
 
 
 app.get('/api/products/search', async (req, res) => {
@@ -296,10 +383,11 @@ app.get('/api/products/search', async (req, res) => {
 
 
 // Catch-all route to serve index.html for any unmatched route
-app.get('*', async (req, res) => {
+// app.get('*', async (req, res) => {
 
-    res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
+//     res.sendFile(path.join(__dirname, 'dist', 'index.html'));
+// });
+
 // Connect to the database and start the server
 connectToDatabase().then(() => {
     app.listen(port, () => {
