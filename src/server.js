@@ -138,8 +138,15 @@ async function fetchAndStoreData() {
 }
 
 // Schedule the task to run every 30 minutes
+(async () => {
+    console.log("Starting immediate fetch and store task...");
+    await fetchAndStoreData();
+    console.log("Initial fetch cycle complete. Waiting for the next scheduled fetch...");
+})();
+
+// Schedule the task to run every 30 minutes
 cron.schedule('*/30 * * * *', async () => {
-    console.log("Starting fetch and store task...");
+    console.log("Starting scheduled fetch and store task...");
     await fetchAndStoreData();
     console.log("Waiting for the next fetch cycle...");
 });
