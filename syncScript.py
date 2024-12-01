@@ -20,7 +20,7 @@ LIMIT = 1000
 
 HEADERS = {"APIKEY": f"{APIKEY}"}
 TARGET_PRODUCT_IDS = ["1056856", "1058711"]  # Target product IDs
-FETCH_INTERVAL = 1800  # 30 minutes in seconds
+FETCH_INTERVAL = 1800/5  # 30 minutes in seconds
 
 def update_sync_timestamp(sync_type):
     current_timestamp = datetime.utcnow()
@@ -49,51 +49,55 @@ def fetch_with_retries(url, headers, retries=3, backoff_factor=2):
                 raise
 
 def fetch_and_store_data():
-    # Fetch Products
-    products = []
-    current_page = 1
-    total_pages = 1
-    while current_page <= total_pages:
-        print(f"Fetching products page {current_page}...")
-        result = fetch_with_retries(f"{API_URL_PRODUCTS}?limit={LIMIT}&page={current_page}", HEADERS)
-        data = result.get("data", [])
-        pagination = result.get("pagination", {})
-        products.extend([record["Product"] for record in data])
-        current_page += 1
-        total_pages = pagination.get("page_count", current_page - 1)
-
-    # Fetch Transactions
+    # Initialize the dictionary to hold transactions for each product
     transactions_by_product = {}
-    current_page = 1
-    total_pages = 1
-    while current_page <= total_pages:
-        print(f"Fetching transactions page {current_page}...")
-        result = fetch_with_retries(f"{API_URL_TRANSACTIONS}?limit={LIMIT}&page={current_page}", HEADERS)
-        data = result.get("data", [])
-        pagination = result.get("pagination", {})
-        for record in data:
-            transaction = record["StockTransaction"]
-            product_id = transaction.get("product_id")
-            if product_id not in transactions_by_product:
-                transactions_by_product[product_id] = []
-            transactions_by_product[product_id].append(transaction)
-        current_page += 1
-        total_pages = pagination.get("page_count", current_page - 1)
 
-    # Filter and Update Products
-    filtered_products = [product for product in products if str(product.get("id")) in TARGET_PRODUCT_IDS]
-    for product in filtered_products:
-        product_id = product.get("id")
-        product["transactions"] = transactions_by_product.get(product_id, [])
+    # Fetch and store product data and transactions for each product ID in the target list
+    for product_id in TARGET_PRODUCT_IDS:
+        # Fetch product data
+        print(f"Fetching product data for ID {product_id}...")
+        product_url = f"{API_URL_PRODUCTS}/{product_id}.json"
+        product_data = fetch_with_retries(product_url, HEADERS)
 
-    # Store in MongoDB
-    operations = [
-        UpdateOne({"id": product["id"]}, {"$set": product}, upsert=True)
-        for product in filtered_products
-    ]
-    if operations:
-        collection.bulk_write(operations)
-        print("Bulk write operation completed successfully.")
+        if product_data and "data" in product_data:
+            product = product_data["data"]["Product"]  # Accessing the "Product" dictionary
+
+            print(f"Fetched product data: {product}")  # Debugging line to inspect the data
+            
+            # Initialize a list to hold all transactions for this product
+            all_transactions = []
+
+            # Fetch transaction data for this product
+            print(f"Fetching transaction data for product ID {product_id}...")
+
+            # Pagination logic: keep fetching data while "next" page exists
+            page_number = 1
+            while True:
+                transaction_url = f"{API_URL_TRANSACTIONS}?product_id={product_id}&page={page_number}"
+                transaction_data = fetch_with_retries(transaction_url, HEADERS)
+
+                if transaction_data and "data" in transaction_data:
+                    # Get the list of stock transactions for the current page
+                    transactions = [record["StockTransaction"] for record in transaction_data["data"]]
+                    all_transactions.extend(transactions)  # Add to the list of all transactions
+
+                    # Check if there is another page
+                    pagination = transaction_data.get("pagination", {})
+                    if pagination.get("next"):
+                        page_number += 1
+                    else:
+                        break
+                else:
+                    print(f"No transaction data found for product ID {product_id} on page {page_number}.")
+                    break
+
+            # Store all transactions in the product data
+            product["transactions"] = all_transactions
+
+            # Store the product with transactions in MongoDB
+            operation = UpdateOne({"id": product["id"]}, {"$set": product}, upsert=True)
+            collection.bulk_write([operation])  # Perform the bulk write operation for this product
+            print(f"Product ID {product_id} data updated in MongoDB.")
 
 def periodic_fetch_and_update():
     while True:
