@@ -19,7 +19,7 @@ APIKEY = "70d7582b80ee4c5855daaed6872460519c0a528c"
 LIMIT = 1000
 
 HEADERS = {"APIKEY": f"{APIKEY}"}
-TARGET_PRODUCT_IDS = ["1056856", "1058711"]  # Target product IDs
+TARGET_PRODUCT_IDS = ["1056856", "1058711","1058627", "1058530"]  # Target product IDs
 FETCH_INTERVAL = 1800/5  # 30 minutes in seconds
 
 def update_sync_timestamp(sync_type):

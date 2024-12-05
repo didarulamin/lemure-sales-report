@@ -26,7 +26,7 @@ const API_URL_PRODUCTS = 'https://amamamed.daftra.com/api2/products';
 const API_URL_TRANSACTIONS = 'https://amamamed.daftra.com/api2/stock_transactions';
 const APIKEY = '70d7582b80ee4c5855daaed6872460519c0a528c';
 const LIMIT = 1000; // Records per page
-const productIds = ["1056856", "1058711"]; // Target product IDs
+const productIds = ["1056856", "1058711", "1058627", "1058530"]; // Target product IDs
 
 // Headers for API requests
 const HEADERS = {
