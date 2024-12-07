@@ -6,7 +6,7 @@ import time
 # MongoDB Connection
 MONGO_URI = "mongodb://amin:Lemure17@3.0.158.189:27017/"
 DATABASE_NAME = "Daftra"
-COLLECTION_NAME = "transactions"
+COLLECTION_NAME = "products"
 
 client = MongoClient(MONGO_URI)
 db = client[DATABASE_NAME]
