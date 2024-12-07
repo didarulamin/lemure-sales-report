@@ -7,6 +7,7 @@ const axios = require('axios');
 const path = require('path');
 const app = express();
 const port = 5000;
+const moment = require('moment-timezone');
 
 // Enable CORS and compression
 app.use(cors());
@@ -18,7 +19,7 @@ app.use(express.static(path.join(__dirname, '../dist')));
 // MongoDB connection configuration
 const url = 'mongodb://amin:Lemure17@3.0.158.189:27017/';
 const dbName = 'Daftra';
-const COLLECTION_NAME = 'transactions';
+const COLLECTION_NAME = 'products';
 let db, collection;
 
 // API configuration
@@ -176,6 +177,53 @@ app.get('/api/products', async (req, res) => {
         res.status(500).json({ message: 'Server Error' });
     }
 });
+
+app.get('/api/transactions', async (req, res) => {
+    const targetProductId = "1056856"; // Product ID to filter by
+
+    try {
+        // Define the start date (December 5, 11 AM Riyadh time, which is UTC+3)
+        const startDate = new Date("2024-11-29 23:00:00"); // Convert to UTC (11 AM Riyadh = 8 AM UTC)
+
+        const result = await db.collection('products').aggregate([
+            {
+                $match: { id: targetProductId }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    transactions: {
+                        $filter: {
+                            input: "$transactions",
+                            as: "transaction",
+                            cond: {
+                                $and: [
+                                    {
+                                        $gte: [
+                                            { $toDate: "$$transaction.created" }, // Convert 'created' string to Date
+                                            startDate                            // Filter transactions created after startDate
+                                        ]
+                                    },
+                                    {
+                                        $eq: ["$$transaction.transaction_type", "2"] // Filter transactions where transaction_type = "2"
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        ]).toArray();
+
+        // Return the count of matching transactions
+        const count = result[0]?.transactions.length || 0;
+        res.json({ count });
+    } catch (err) {
+        console.error('Error:', err);
+        res.status(500).json({ error: 'Internal Server Error' });
+    }
+});
+
 
 // Catch-all route to serve index.html
 app.get('*', (req, res) => {
