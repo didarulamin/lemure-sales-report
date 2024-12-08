@@ -7,7 +7,7 @@ const axios = require('axios');
 const path = require('path');
 const app = express();
 const port = 5000;
-const moment = require('moment-timezone');
+// const moment = require('moment-timezone');
 
 // Enable CORS and compression
 app.use(cors());
@@ -178,20 +178,197 @@ app.get('/api/products', async (req, res) => {
     }
 });
 
+
+
+
+// app.get('/api/transactions', async (req, res) => {
+//     const productIds = ["1056856", "1058711", "1058627", "1058530"];
+
+
+
+//     try {
+//         // Explicitly set the start dates
+//         const startDateUTC3 = new Date(Date.UTC(2024, 10, 29, 20, 0, 0)); // 29th Nov 2024, 11 PM UTC+3 (8 PM UTC)
+//         const startDateUTC3ForOthertwo = new Date(Date.UTC(2024, 11, 5, 11, 0, 0)); // 5th Dec 2024, 11 AM UTC+3 (8 AM UTC)
+
+//         console.log('Start Date (Explicit UTC+3):', startDateUTC3);
+//         console.log('Start Date (Explicit UTC+3 for 1058627 & 1058530):', startDateUTC3ForOthertwo);
+
+//         const result = await db.collection('products').aggregate([
+//             {
+//                 $match: { id: { $in: productIds } }
+//             },
+//             {
+//                 $project: {
+//                     _id: 0,
+//                     id: 1,
+//                     transactions: {
+//                         $filter: {
+//                             input: "$transactions",
+//                             as: "transaction",
+//                             cond: {
+//                                 $and: [
+//                                     {
+//                                         $gte: [
+//                                             {
+//                                                 $dateFromString: {
+//                                                     dateString: "$$transaction.created",
+//                                                     timezone: "Asia/Riyadh"
+//                                                 }
+//                                             },
+//                                             {
+//                                                 $cond: {
+//                                                     if: { $in: ["$id", ["1058627", "1058530"]] },
+//                                                     then: startDateUTC3ForOthertwo,
+//                                                     else: startDateUTC3
+//                                                 }
+//                                             }
+//                                         ]
+//                                     },
+//                                     {
+//                                         $eq: ["$$transaction.transaction_type", "2"] // Filter transactions where transaction_type = "2"
+//                                     }
+//                                 ]
+//                             }
+//                         }
+//                     }
+//                 }
+//             },
+//             {
+//                 $unwind: "$transactions"
+//             },
+//             {
+//                 $addFields: {
+//                     transactionDate: {
+//                         $dateFromString: {
+//                             dateString: "$transactions.created",
+//                             timezone: "Asia/Riyadh"
+//                         }
+//                     },
+//                     price: { $toDouble: "$transactions.price" }, // Convert price string to double
+//                     quantity: { $abs: { $toDouble: "$transactions.quantity" } } // Convert quantity to positive double
+//                 }
+//             },
+//             {
+//                 $addFields: {
+//                     totalsoldamountwithoutvat: { $multiply: ["$price", "$quantity"] } // Calculate totalsoldamountwithoutvat
+//                 }
+//             },
+//             {
+//                 $addFields: {
+//                     priceWithVAT: {
+//                         $cond: {
+//                             if: { $eq: ["$transactions.currency_code", "SAR"] },
+//                             then: { $multiply: ["$price", 1.15] }, // Add 15% VAT to price if currency is SAR
+//                             else: "$price" // No VAT for other currencies
+//                         }
+//                     }
+//                 }
+//             },
+//             {
+//                 $addFields: {
+//                     totalsoldamountwithvat: { $multiply: ["$priceWithVAT", "$quantity"] } // Calculate totalsoldamountwithvat
+//                 }
+//             },
+//             {
+//                 $addFields: {
+//                     monthYear: {
+//                         $dateToString: {
+//                             format: "%Y-%m", // Format as "YYYY-MM" (e.g., "2024-12")
+//                             date: "$transactionDate",
+//                             timezone: "Asia/Riyadh"
+//                         }
+//                     }
+//                 }
+//             },
+//             {
+//                 $group: {
+//                     _id: { monthYear: "$monthYear", productId: "$id" },
+
+//                     monthlyTotalWithoutVAT: { $sum: "$totalsoldamountwithoutvat" },
+//                     monthlyTotalWithVAT: { $sum: "$totalsoldamountwithvat" },
+//                     monthlyQuantitySold: { $sum: "$quantity" }
+//                 }
+//             },
+//             {
+//                 $group: {
+//                     _id: "$_id.monthYear",
+//                     monthlyTotals: {
+//                         $push: {
+//                             productId: "$_id.productId",
+
+//                             totalWithoutVAT: "$monthlyTotalWithoutVAT",
+//                             totalWithVAT: "$monthlyTotalWithVAT",
+//                             quantitySold: "$monthlyQuantitySold"
+//                         }
+//                     },
+//                     monthlyTotalWithoutVAT: { $sum: "$monthlyTotalWithoutVAT" },
+//                     monthlyTotalWithVAT: { $sum: "$monthlyTotalWithVAT" },
+//                     monthlyQuantitySold: { $sum: "$monthlyQuantitySold" }
+//                 }
+//             },
+//             {
+//                 $group: {
+//                     _id: null,
+//                     monthlyData: {
+//                         $push: {
+//                             k: "$_id",
+//                             v: {
+//                                 details: "$monthlyTotals",
+//                                 totalWithoutVAT: "$monthlyTotalWithoutVAT",
+//                                 totalWithVAT: "$monthlyTotalWithVAT",
+//                                 quantitySold: "$monthlyQuantitySold"
+//                             }
+//                         }
+//                     },
+//                     overallTotalWithoutVAT: { $sum: "$monthlyTotalWithoutVAT" },
+//                     overallTotalWithVAT: { $sum: "$monthlyTotalWithVAT" },
+//                     overallTotalQuantity: { $sum: "$monthlyQuantitySold" }
+//                 }
+//             },
+//             {
+//                 $project: {
+//                     _id: 0,
+//                     overallTotalWithoutVAT: 1,
+//                     overallTotalWithVAT: 1,
+//                     overallTotalQuantity: 1,
+
+//                     monthlyData: { $arrayToObject: "$monthlyData" }
+//                 }
+//             }
+//         ]).toArray();
+
+//         console.log('Result:', result);
+//         res.json(result[0]);
+//     } catch (err) {
+//         console.error('Error:', err);
+//         res.status(500).json({ error: 'Internal Server Error' });
+//     }
+// });
+
+
+
 app.get('/api/transactions', async (req, res) => {
-    const targetProductId = "1056856"; // Product ID to filter by
+    const productIds = ["1056856", "1058711", "1058627", "1058530"];
 
     try {
-        // Define the start date (December 5, 11 AM Riyadh time, which is UTC+3)
-        const startDate = new Date("2024-11-29 23:00:00"); // Convert to UTC (11 AM Riyadh = 8 AM UTC)
+        // Explicitly set the start dates
+        const startDateUTC3 = new Date(Date.UTC(2024, 10, 29, 20, 0, 0)); // 29th Nov 2024, 11 PM UTC+3 (8 PM UTC)
+        const startDateUTC3ForOthertwo = new Date(Date.UTC(2024, 11, 5, 11, 0, 0)); // 5th Dec 2024, 11 AM UTC+3 (8 AM UTC)
+
+        console.log('Start Date (Explicit UTC+3):', startDateUTC3);
+        console.log('Start Date (Explicit UTC+3 for 1058627 & 1058530):', startDateUTC3ForOthertwo);
 
         const result = await db.collection('products').aggregate([
             {
-                $match: { id: targetProductId }
+                $match: { id: { $in: productIds } }
             },
             {
                 $project: {
                     _id: 0,
+                    id: 1,
+                    name: 1,           // Include product name
+                    barcode: 1,        // Include product barcode
                     transactions: {
                         $filter: {
                             input: "$transactions",
@@ -200,8 +377,19 @@ app.get('/api/transactions', async (req, res) => {
                                 $and: [
                                     {
                                         $gte: [
-                                            { $toDate: "$$transaction.created" }, // Convert 'created' string to Date
-                                            startDate                            // Filter transactions created after startDate
+                                            {
+                                                $dateFromString: {
+                                                    dateString: "$$transaction.created",
+                                                    timezone: "Asia/Riyadh"
+                                                }
+                                            },
+                                            {
+                                                $cond: {
+                                                    if: { $in: ["$id", ["1058627", "1058530"]] },
+                                                    then: startDateUTC3ForOthertwo,
+                                                    else: startDateUTC3
+                                                }
+                                            }
                                         ]
                                     },
                                     {
@@ -212,12 +400,114 @@ app.get('/api/transactions', async (req, res) => {
                         }
                     }
                 }
+            },
+            {
+                $unwind: "$transactions"
+            },
+            {
+                $addFields: {
+                    transactionDate: {
+                        $dateFromString: {
+                            dateString: "$transactions.created",
+                            timezone: "Asia/Riyadh"
+                        }
+                    },
+                    price: { $toDouble: "$transactions.price" }, // Convert price string to double
+                    quantity: { $abs: { $toDouble: "$transactions.quantity" } } // Convert quantity to positive double
+                }
+            },
+            {
+                $addFields: {
+                    totalsoldamountwithoutvat: { $multiply: ["$price", "$quantity"] } // Calculate totalsoldamountwithoutvat
+                }
+            },
+            {
+                $addFields: {
+                    priceWithVAT: {
+                        $cond: {
+                            if: { $eq: ["$transactions.currency_code", "SAR"] },
+                            then: { $multiply: ["$price", 1.15] }, // Add 15% VAT to price if currency is SAR
+                            else: "$price" // No VAT for other currencies
+                        }
+                    }
+                }
+            },
+            {
+                $addFields: {
+                    totalsoldamountwithvat: { $multiply: ["$priceWithVAT", "$quantity"] } // Calculate totalsoldamountwithvat
+                }
+            },
+            {
+                $addFields: {
+                    monthYear: {
+                        $dateToString: {
+                            format: "%Y-%m", // Format as "YYYY-MM" (e.g., "2024-12")
+                            date: "$transactionDate",
+                            timezone: "Asia/Riyadh"
+                        }
+                    }
+                }
+            },
+            {
+                $group: {
+                    _id: { monthYear: "$monthYear", productId: "$id" },
+                    name: { $first: "$name" },            // Include product name
+                    barcode: { $first: "$barcode" },      // Include product barcode
+                    monthlyTotalWithoutVAT: { $sum: "$totalsoldamountwithoutvat" },
+                    monthlyTotalWithVAT: { $sum: "$totalsoldamountwithvat" },
+                    monthlyQuantitySold: { $sum: "$quantity" }
+                }
+            },
+            {
+                $group: {
+                    _id: "$_id.monthYear",
+                    monthlyTotals: {
+                        $push: {
+                            productId: "$_id.productId",
+                            name: "$name",                 // Add name to breakdown
+                            barcode: "$barcode",           // Add barcode to breakdown
+                            totalWithoutVAT: "$monthlyTotalWithoutVAT",
+                            totalWithVAT: "$monthlyTotalWithVAT",
+                            quantitySold: "$monthlyQuantitySold"
+                        }
+                    },
+                    monthlyTotalWithoutVAT: { $sum: "$monthlyTotalWithoutVAT" },
+                    monthlyTotalWithVAT: { $sum: "$monthlyTotalWithVAT" },
+                    monthlyQuantitySold: { $sum: "$monthlyQuantitySold" }
+                }
+            },
+            {
+                $group: {
+                    _id: null,
+                    monthlyData: {
+                        $push: {
+                            k: "$_id",
+                            v: {
+                                details: "$monthlyTotals",
+                                totalWithoutVAT: "$monthlyTotalWithoutVAT",
+                                totalWithVAT: "$monthlyTotalWithVAT",
+                                quantitySold: "$monthlyQuantitySold"
+                            }
+                        }
+                    },
+                    overallTotalWithoutVAT: { $sum: "$monthlyTotalWithoutVAT" },
+                    overallTotalWithVAT: { $sum: "$monthlyTotalWithVAT" },
+                    overallTotalQuantity: { $sum: "$monthlyQuantitySold" }
+                }
+            },
+            {
+                $project: {
+                    _id: 0,
+                    overallTotalWithoutVAT: 1,
+                    overallTotalWithVAT: 1,
+                    overallTotalQuantity: 1,
+                    monthlyData: { $arrayToObject: "$monthlyData" }
+                }
             }
         ]).toArray();
 
-        // Return the count of matching transactions
-        const count = result[0]?.transactions.length || 0;
-        res.json({ count });
+        const lastupdate = await db.collection("update").find().toArray();
+        res.json({ result: result[0], lastupdate: lastupdate });
     } catch (err) {
         console.error('Error:', err);
         res.status(500).json({ error: 'Internal Server Error' });
@@ -225,7 +515,9 @@ app.get('/api/transactions', async (req, res) => {
 });
 
 
-// Catch-all route to serve index.html
+
+
+
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../dist', 'index.html'));
 });
