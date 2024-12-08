@@ -6,7 +6,7 @@ const client = new MongoClient(mongoURI, { useNewUrlParser: true, useUnifiedTopo
 // const targetProductId = "1058627"; // Product ID to filter by
 // const targetProductId = "1058530"; // Product ID to filter by
 const targetProductId = "1056856"; // Product ID to filter by
-const transactionId = "96308";     // Transaction ID to filter by
+const transactionId = "96407";     // Transaction ID to filter by
 
 async function getTransactionById() {
     try {
