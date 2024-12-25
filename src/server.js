@@ -27,7 +27,7 @@ const API_URL_PRODUCTS = 'https://amamamed.daftra.com/api2/products';
 const API_URL_TRANSACTIONS = 'https://amamamed.daftra.com/api2/stock_transactions';
 const APIKEY = '70d7582b80ee4c5855daaed6872460519c0a528c';
 const LIMIT = 1000; // Records per page
-const productIds = ["1056856", "1058711", "1058627", "1058530"]; // Target product IDs
+const productIds = ["1056856", "1058711", "1058627", "1058530", "1065759", "1058162"]; // Target product IDs
 
 // Headers for API requests
 const HEADERS = {
@@ -182,15 +182,17 @@ app.get('/api/products', async (req, res) => {
 
 
 app.get('/api/transactions', async (req, res) => {
-    const productIds = ["1056856", "1058711", "1058627", "1058530"];
+    const productIds = ["1056856", "1058711", "1058627", "1058530", "1065759", "1058162"];
 
     try {
         // Explicitly set the start dates
         const startDateUTC3 = new Date(Date.UTC(2024, 10, 29, 20, 0, 0)); // 29th Nov 2024, 11 PM UTC+3 (8 PM UTC)
         const startDateUTC3ForOthertwo = new Date(Date.UTC(2024, 11, 5, 11, 0, 0)); // 5th Dec 2024, 11 AM UTC+3 (8 AM UTC)
+        const startDateUTC3ForNewtwo = new Date(Date.UTC(2024, 11, 25, 12, 0, 0)); // 25th Dec 2024, 3PM UTC+3 ((12 PM UTC))
 
         console.log('Start Date (Explicit UTC+3):', startDateUTC3);
         console.log('Start Date (Explicit UTC+3 for 1058627 & 1058530):', startDateUTC3ForOthertwo);
+        console.log(startDateUTC3ForNewtwo)
 
         const result = await db.collection('products').aggregate([
             {
@@ -220,9 +222,18 @@ app.get('/api/transactions', async (req, res) => {
                                                 $cond: {
                                                     if: { $in: ["$id", ["1058627", "1058530"]] },
                                                     then: startDateUTC3ForOthertwo,
-                                                    else: startDateUTC3
+                                                    else: {
+                                                        $cond: {
+                                                            if: { $in: ["$id", ["1065759", "1058162"]] },
+                                                            then: startDateUTC3ForNewtwo,
+                                                            else: startDateUTC3
+                                                        }
+
+                                                    }
+
                                                 }
                                             }
+
                                         ]
                                     },
                                     {
@@ -363,3 +374,16 @@ connectToDatabase().then(() => {
 });
 
 // pip install -r requirements.txt
+
+
+// LuVghlPR5pd =
+//     db.createUser({
+//         user: "zid",
+//         pwd: "Lemure17",
+//         roles: [
+//             {
+//                 role: "readWrite",  // This gives the user read and write permissions
+//                 db: "ZidIntegration" // Replace with the database name
+//             }
+//         ]
+//     })

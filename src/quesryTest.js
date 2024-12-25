@@ -3,10 +3,11 @@ const { MongoClient } = require('mongodb');
 const mongoURI = 'mongodb://amin:Lemure17@3.0.158.189:27017/';
 const client = new MongoClient(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true });
 
-// const targetProductId = "1058627"; // Product ID to filter by
+const targetProductId = "1058627"; // Product ID to filter by
 // const targetProductId = "1058530"; // Product ID to filter by
-const targetProductId = "1056856"; // Product ID to filter by
-const transactionId = "96407";     // Transaction ID to filter by
+// const targetProductId = "1056856"; // Product ID to filter by
+// const targetProductId = "1058711"; // Product ID to filter by
+const transactionId = "22838";     // Transaction ID to filter by
 
 async function getTransactionById() {
     try {
