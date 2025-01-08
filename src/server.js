@@ -27,7 +27,7 @@ const API_URL_PRODUCTS = 'https://amamamed.daftra.com/api2/products';
 const API_URL_TRANSACTIONS = 'https://amamamed.daftra.com/api2/stock_transactions';
 const APIKEY = '70d7582b80ee4c5855daaed6872460519c0a528c';
 const LIMIT = 1000; // Records per page
-const productIds = ["1056856", "1058711", "1058627", "1058530", "1065759", "1058162", "1056857"]; // Target product IDs
+const productIds = ["1056856", "1058711", "1058627", "1058530", "1065759", "1058162", "1056857", "1056857"]; // Target product IDs
 
 // Headers for API requests
 const HEADERS = {
@@ -214,22 +214,23 @@ app.get('/api/transactions', async (req, res) => {
                                             {
                                                 $dateFromString: {
                                                     dateString: "$$transaction.created",
+                                                    format: "%Y-%m-%d %H:%M:%S",
                                                     timezone: "Asia/Riyadh"
                                                 }
                                             },
                                             {
                                                 $cond: {
                                                     if: { $in: ["$id", ["1058627", "1058530"]] },
-                                                    then: startDateUTC3ForOthertwo,
+                                                    then: new Date("2024-12-05T11:00:00+03:00"),
                                                     else: {
                                                         $cond: {
                                                             if: { $in: ["$id", ["1065759", "1058162"]] },
-                                                            then: startDateUTC3ForNewtwo,
+                                                            then: new Date("2024-12-25T15:00:00+03:00"),
                                                             else: {
                                                                 $cond: {
                                                                     if: { $eq: ["$id", "1056857"] },
-                                                                    then: startDateUTC3ForNewOne,
-                                                                    else: startDateUTC3
+                                                                    then: new Date("2025-01-07T20:00:00+03:00"),
+                                                                    else: new Date("2024-11-29T20:00:00+03:00")
                                                                 }
                                                             }
                                                         }
