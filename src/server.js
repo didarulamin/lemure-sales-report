@@ -366,6 +366,25 @@ app.get('/api/transactions', async (req, res) => {
 
 
 
+app.get('/api/reports', async (req, res) => {
+    try {
+        // Fetch all documents from the 'statistics' collection
+        const results = await db.collection('statistics').find().toArray();
+
+        res.status(200).json({
+            message: 'Data fetched successfully',
+            results: results
+        });
+    } catch (error) {
+        console.error('Error fetching data from statistics collection:', error);
+        res.status(500).json({
+            message: 'Failed to fetch data',
+            error: error.message
+        });
+    }
+});
+
+
 
 
 
